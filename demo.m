@@ -50,45 +50,38 @@ mbq = minibatchqueue(augimdsTrain,...
     MiniBatchFcn=@preprocessMiniBatch,...
     MiniBatchFormat=['SSCB' '']);
 
+% Initialize the training progress plot.
+figure
+C = colororder;
+lineLossTrain = animatedline(Color=C(2,:));
+ylim([0 inf])
+xlabel('Iteration')
+ylabel('Loss')
+grid on
+
 % Initialize the velocity parameter for the SGDM solver.
 velocity = [];
 
-% Calculate the total number of iterations for the training progress
-% monitor.
-numObservationsTrain = numel(imdsTrain.Files);
-numIterationsPerEpoch = ceil(numObservationsTrain / miniBatchSize);
-numIterations = numEpochs * numIterationsPerEpoch;
-
-% Initialize the TrainingProgressMonitor object. Because the timer starts
-% when you create the monitor object, make sure that you create the object
-% close to the training loop.
-monitor = trainingProgressMonitor(Metrics='Loss', ...
-    Info=['Epoch', 'LearnRate'], ...
-    XLabel='Iteration');
-
 % Train the network using a custom training loop.
-epoch = 0;
 iteration = 0;
+start = tic;
 
 % Loop over epochs.
-while epoch < numEpochs && ~monitor.Stop
-    
-    epoch = epoch + 1;
+for epoch = 1:numEpochs
 
     % Shuffle data.
     shuffle(mbq);
     
     % Loop over mini-batches.
-    while hasdata(mbq) && ~monitor.Stop
-
+    while hasdata(mbq)
         iteration = iteration + 1;
         
         % Read mini-batch of data.
-        [X, T] = next(mbq);
+        [X,T] = next(mbq);
         
         % Evaluate the model gradients, state, and loss using dlfeval and
-        % the KL Divergence Loss function and update the network state.
-        [loss, gradients, state] = dlfeval(@modelLoss,net,X,T);
+        % the modelLoss function and update the network state.
+        [loss, gradients, state] = dlfeval(@modelLoss, net, X, T);
         net.State = state;
         
         % Determine learning rate for time-based decay learning rate
@@ -102,10 +95,12 @@ while epoch < numEpochs && ~monitor.Stop
             learnRate, ...
             momentum);
         
-        % Update the training progress monitor.
-        recordMetrics(monitor, iteration, Loss=loss);
-        updateInfo(monitor, Epoch=epoch, LearnRate=learnRate);
-        monitor.Progress = 100 * iteration/numIterations;
+        % Display the training progress.
+        D = duration(0, 0, toc(start), Format='hh:mm:ss');
+        loss = double(loss);
+        addpoints(lineLossTrain, iteration, loss)
+        title('Epoch: ' + epoch + ', Elapsed: ' + string(D))
+        drawnow
     end
 end
 
@@ -116,7 +111,7 @@ numOutputs = 1;
 mbqTest = minibatchqueue(augimdsValidation,numOutputs, ...
     MiniBatchSize=miniBatchSize, ...
     MiniBatchFcn=@preprocessMiniBatchPredictors, ...
-    MiniBatchFormat="SSCB");
+    MiniBatchFormat='SSCB');
 
 % Loop over the mini-batches and classify the images using modelPredictions
 % function, listed at the end of the example.
@@ -156,8 +151,7 @@ function Y = modelPredictions(net,mbq,classes)
         % Decode labels and append to output.
         labels = onehotdecode(scores,classes,1)';
         Y = [Y; labels];
-end
-
+    end
 end
 
 function [X,T] = preprocessMiniBatch(dataX,dataT)

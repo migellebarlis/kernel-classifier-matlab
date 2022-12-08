@@ -33,7 +33,7 @@ classdef fft2Layer < nnet.layer.Layer
             %    parameters.
 
             % Define layer predict function here.
-            Z = fft2(X);
+            Z = fftshift(abs(fft2(X)));
         end
     end
 end
