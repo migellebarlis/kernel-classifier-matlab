@@ -1,13 +1,13 @@
 % Load the digits data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
-imds = imageDatastore('data', ...
+imds = imageDatastore("data", ...
     IncludeSubfolders=true, ...
-    LabelSource='foldernames', ...
+    LabelSource="foldernames", ...
     FileExtensions='.png');
 
 % Partition the data into training and validation sets. Set aside 10% of
 % the data for validation using the splitEachLabel function.
-[imdsTrain, imdsValidation] = splitEachLabel(imds, 0.9, 'randomize');
+[imdsTrain,imdsValidation] = splitEachLabel(imds,0.9,"randomize");
 
 % The network used in this example requires input images of size
 % 128-by-128.
@@ -15,7 +15,7 @@ inputSize = [128 128 1];
 
 % To automatically resize the training and validation images, use an
 % augmented image datastore.
-augimdsTrain = augmentedImageDatastore(inputSize(1:2), imdsTrain);
+augimdsTrain = augmentedImageDatastore(inputSize(1:2),imdsTrain);
 augimdsValidation = augmentedImageDatastore(inputSize(1:2),imdsValidation);
 
 % Determine the number of classes in the training data.
@@ -26,6 +26,7 @@ numClasses = numel(classes);
 layers = [
     imageInputLayer(inputSize, Normalization='none', Name='input')
     convolution2dLayer(3, 64, Padding='same', Name='features')
+    batchNormalizationLayer(Name='norm')
     fft2Layer(Name='fft2')
     fullyConnectedLayer(numClasses, Name='full')
     softmaxLayer(Name='softmax')];
@@ -48,15 +49,15 @@ momentum = 0.9;
 mbq = minibatchqueue(augimdsTrain,...
     MiniBatchSize=miniBatchSize,...
     MiniBatchFcn=@preprocessMiniBatch,...
-    MiniBatchFormat=['SSCB' '']);
+    MiniBatchFormat=["SSCB" ""]);
 
 % Initialize the training progress plot.
 figure
 C = colororder;
 lineLossTrain = animatedline(Color=C(2,:));
 ylim([0 inf])
-xlabel('Iteration')
-ylabel('Loss')
+xlabel("Iteration")
+ylabel("Loss")
 grid on
 
 % Initialize the velocity parameter for the SGDM solver.
@@ -79,27 +80,22 @@ for epoch = 1:numEpochs
         % Read mini-batch of data.
         [X,T] = next(mbq);
         
-        % Evaluate the model gradients, state, and loss using dlfeval and
-        % the modelLoss function and update the network state.
-        [loss, gradients, state] = dlfeval(@modelLoss, net, X, T);
+        % Evaluate the model gradients, state, and loss using dlfeval and the
+        % modelLoss function and update the network state.
+        [loss,gradients,state] = dlfeval(@modelLoss,net,X,T);
         net.State = state;
         
-        % Determine learning rate for time-based decay learning rate
-        % schedule.
+        % Determine learning rate for time-based decay learning rate schedule.
         learnRate = initialLearnRate/(1 + decay*iteration);
         
         % Update the network parameters using the SGDM optimizer.
-        [net, velocity] = sgdmupdate(net, ...
-            gradients, ...
-            velocity, ...
-            learnRate, ...
-            momentum);
+        [net,velocity] = sgdmupdate(net,gradients,velocity,learnRate,momentum);
         
         % Display the training progress.
-        D = duration(0, 0, toc(start), Format='hh:mm:ss');
+        D = duration(0,0,toc(start),Format="hh:mm:ss");
         loss = double(loss);
-        addpoints(lineLossTrain, iteration, loss)
-        title('Epoch: ' + epoch + ', Elapsed: ' + string(D))
+        addpoints(lineLossTrain,iteration,loss)
+        title("Epoch: " + epoch + ", Elapsed: " + string(D))
         drawnow
     end
 end
@@ -111,7 +107,7 @@ numOutputs = 1;
 mbqTest = minibatchqueue(augimdsValidation,numOutputs, ...
     MiniBatchSize=miniBatchSize, ...
     MiniBatchFcn=@preprocessMiniBatchPredictors, ...
-    MiniBatchFormat='SSCB');
+    MiniBatchFormat="SSCB");
 
 % Loop over the mini-batches and classify the images using modelPredictions
 % function, listed at the end of the example.
@@ -127,47 +123,51 @@ confusionchart(TTest,YTest)
 
 function [loss,gradients,state] = modelLoss(net,X,T)
 
-    % Forward data through network.
-    [Y,state] = forward(net,X);
-    
-    % Calculate cross-entropy loss.
-    loss = crossentropy(Y,T);
-    
-    % Calculate gradients of loss with respect to learnable parameters.
-    gradients = dlgradient(loss,net.Learnables);
+% Forward data through network.
+[Y,state] = forward(net,X);
+
+% Calculate cross-entropy loss.
+loss = crossentropy(Y,T);
+
+% Calculate gradients of loss with respect to learnable parameters.
+gradients = dlgradient(loss,net.Learnables);
+
 end
 
 function Y = modelPredictions(net,mbq,classes)
 
-    Y = [];
-    
-    % Loop over mini-batches.
-    while hasdata(mbq)
-        X = next(mbq);
-    
-        % Make prediction.
-        scores = predict(net,X);
-    
-        % Decode labels and append to output.
-        labels = onehotdecode(scores,classes,1)';
-        Y = [Y; labels];
-    end
+Y = [];
+
+% Loop over mini-batches.
+while hasdata(mbq)
+    X = next(mbq);
+
+    % Make prediction.
+    scores = predict(net,X);
+
+    % Decode labels and append to output.
+    labels = onehotdecode(scores,classes,1)';
+    Y = [Y; labels];
+end
+
 end
 
 function [X,T] = preprocessMiniBatch(dataX,dataT)
 
-    % Preprocess predictors.
-    X = preprocessMiniBatchPredictors(dataX);
-    
-    % Extract label data from cell and concatenate.
-    T = cat(2,dataT{1:end});
-    
-    % One-hot encode labels.
-    T = onehotencode(T,1);
+% Preprocess predictors.
+X = preprocessMiniBatchPredictors(dataX);
+
+% Extract label data from cell and concatenate.
+T = cat(2,dataT{1:end});
+
+% One-hot encode labels.
+T = onehotencode(T,1);
+
 end
 
 function X = preprocessMiniBatchPredictors(dataX)
 
-    % Concatenate.
-    X = cat(4,dataX{1:end});
+% Concatenate.
+X = cat(4,dataX{1:end});
+
 end
