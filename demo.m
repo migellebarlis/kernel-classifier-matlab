@@ -26,10 +26,10 @@ numClasses = numel(classes);
 layers = [
     imageInputLayer(inputSize, Normalization='none', Name='input')
     convolution2dLayer(3, 64, Padding='same', Name='features')
-    batchNormalizationLayer(Name='norm')
-    fft2Layer(Name='fft2')
-    fullyConnectedLayer(numClasses, Name='full')
-    softmaxLayer(Name='softmax')];
+%     batchNormalizationLayer(Name='norm')
+    fft2Layer(Name='fft2')];
+%     fullyConnectedLayer(numClasses, Name='full')
+%     softmaxLayer(Name='softmax')];
 
 % Create a dlnetwork object from the layer array.
 net = dlnetwork(layers)
@@ -126,8 +126,27 @@ function [loss,gradients,state] = modelLoss(net,X,T)
 % Forward data through network.
 [Y,state] = forward(net,X);
 
-% Calculate cross-entropy loss.
-loss = crossentropy(Y,T);
+% Calculate KL divergence loss.
+P = dlarray(zeros([size(Y,1) size(Y,2) size(T,1)]));
+L = dlarray(zeros([size(T,1) 1]));
+
+t = 1:size(T,1);
+normY = Y ./ sum(Y,[1 2]);
+
+for i = t
+    temp = normY(:,:,:,T(i,:)>0);
+    P(:,:,i) = mean(temp,[3 4]);
+end
+
+for i = t
+    for j = t(t~=i)
+        temp = P(:,:,i) .* log(P(:,:,i) ./ P(:,:,j));
+        temp(isnan(temp)) = 0; % resolving the case when P(i)==0
+        L(i) = L(i) - sum(temp,"all");
+    end
+end
+
+loss = sum(L);
 
 % Calculate gradients of loss with respect to learnable parameters.
 gradients = dlgradient(loss,net.Learnables);
