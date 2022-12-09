@@ -25,6 +25,7 @@ classdef fft2Layer < nnet.layer.Layer
             %         state - (Optional) Updated layer state
 
             % Define layer predict function here.
+            % Implementation using fft2
             isdlarray = isa(X,'dlarray');
             if (isdlarray)
                 X = extractdata(X);
@@ -35,6 +36,14 @@ classdef fft2Layer < nnet.layer.Layer
             if (isdlarray)
                 Z = dlarray(Z);
             end
+            
+            % Implementation using fft
+            % fft2 is equivalent to computing fft(fft(X).').'
+            % perm = 1:numel(size(X));
+            % perm([1 2]) = perm([2 1]);
+            % Z = permute(fft(X),perm);
+            % Z = permute(fft(Z),perm);
+            % Z = fftshift(abs(Z));
         end
     end
 end
