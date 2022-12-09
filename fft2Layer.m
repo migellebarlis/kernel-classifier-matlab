@@ -6,7 +6,7 @@ classdef fft2Layer < nnet.layer.Layer
             % fft2 layer and specifies the layer name.
 
             arguments
-                NameValueArgs.Name
+                NameValueArgs.Name = '';
             end
 
             % Set layer name.
@@ -23,17 +23,18 @@ classdef fft2Layer < nnet.layer.Layer
             % Outputs:
             %         Z     - Output of layer forward function
             %         state - (Optional) Updated layer state
-            %
-            %  - For layers with multiple inputs, replace X with X1,...,XN, 
-            %    where N is the number of inputs.
-            %  - For layers with multiple outputs, replace Z with 
-            %    Z1,...,ZM, where M is the number of outputs.
-            %  - For layers with multiple state parameters, replace state 
-            %    with state1,...,stateK, where K is the number of state 
-            %    parameters.
 
             % Define layer predict function here.
+            isdlarray = isa(X,'dlarray');
+            if (isdlarray)
+                X = extractdata(X);
+            end
+
             Z = fftshift(abs(fft2(X)));
+
+            if (isdlarray)
+                Z = dlarray(Z);
+            end
         end
     end
 end
