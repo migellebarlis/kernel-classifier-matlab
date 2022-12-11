@@ -1,3 +1,5 @@
+clear;clc;close all;
+
 % Load the digits data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
 imds = imageDatastore("data", ...
@@ -35,7 +37,7 @@ layers = [
 net = dlnetwork(layers)
 
 % Train for ten epochs with a mini-batch size of 128.
-numEpochs = 10;
+numEpochs = 50;
 miniBatchSize = 128;
 
 % Specify the options for SGDM optimization. Specify an initial learn rate
@@ -55,7 +57,7 @@ mbq = minibatchqueue(augimdsTrain,...
 figure
 C = colororder;
 lineLossTrain = animatedline(Color=C(2,:));
-ylim([0 inf])
+ylim([-inf 0])
 xlabel("Iteration")
 ylabel("Loss")
 grid on
@@ -102,24 +104,24 @@ end
 
 % Test the classification accuracy of the model by comparing the
 % predictions on the validation set with the true labels.
-numOutputs = 1;
+% numOutputs = 1;
 
-mbqTest = minibatchqueue(augimdsValidation,numOutputs, ...
-    MiniBatchSize=miniBatchSize, ...
-    MiniBatchFcn=@preprocessMiniBatchPredictors, ...
-    MiniBatchFormat="SSCB");
+% mbqTest = minibatchqueue(augimdsValidation,numOutputs, ...
+%     MiniBatchSize=miniBatchSize, ...
+%     MiniBatchFcn=@preprocessMiniBatchPredictors, ...
+%     MiniBatchFormat="SSCB");
 
 % Loop over the mini-batches and classify the images using modelPredictions
 % function, listed at the end of the example.
-YTest = modelPredictions(net,mbqTest,classes);
+% YTest = modelPredictions(net,mbqTest,classes);
 
 % Evaluate the classification accuracy.
-TTest = imdsValidation.Labels;
-accuracy = mean(TTest == YTest)
+% TTest = imdsValidation.Labels;
+% accuracy = mean(TTest == YTest)
 
 % Visualize the predictions in a confusion chart.
-figure
-confusionchart(TTest,YTest)
+% figure
+% confusionchart(TTest,YTest)
 
 function [loss,gradients,state] = modelLoss(net,X,T)
 
@@ -127,26 +129,26 @@ function [loss,gradients,state] = modelLoss(net,X,T)
 [Y,state] = forward(net,X);
 
 % Calculate KL divergence loss.
-P = dlarray(zeros([size(Y,1) size(Y,2) size(T,1)]));
-L = dlarray(zeros([size(T,1) 1]));
+sigma = dlarray(zeros([size(Y,1) size(Y,2) size(T,1)]));
+dkl = dlarray(zeros([size(T,1) 1]));
 
 t = 1:size(T,1);
 normY = Y ./ sum(Y,[1 2]);
 
 for i = t
     temp = normY(:,:,:,T(i,:)>0);
-    P(:,:,i) = mean(temp,[3 4]);
+    sigma(:,:,i) = var(temp,1,[3 4]);
 end
 
 for i = t
     for j = t(t~=i)
-        temp = P(:,:,i) .* log(P(:,:,i) ./ P(:,:,j));
+        temp = (sigma(:,:,i) ./ sigma(:,:,j)) - log(sigma(:,:,i) ./ sigma(:,:,j));
         temp(isnan(temp)) = 0; % resolving the case when P(i)==0
-        L(i) = L(i) - sum(temp,"all");
+        dkl(i) = dkl(i) - sum(temp,"all");
     end
 end
 
-loss = sum(L);
+loss = sum(dkl);
 
 % Calculate gradients of loss with respect to learnable parameters.
 gradients = dlgradient(loss,net.Learnables);
