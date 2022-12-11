@@ -31,7 +31,7 @@ classdef fft2Layer < nnet.layer.Layer
                 X = extractdata(X);
             end
 
-            Z = fftshift(abs(fft2(X)));
+            Z = abs(fft2(X));
 
             if (isdlarray)
                 Z = dlarray(Z);
@@ -43,7 +43,7 @@ classdef fft2Layer < nnet.layer.Layer
             % perm([1 2]) = perm([2 1]);
             % Z = permute(fft(X),perm);
             % Z = permute(fft(Z),perm);
-            % Z = fftshift(abs(Z));
+            % Z = abs(Z);
         end
     end
 end
