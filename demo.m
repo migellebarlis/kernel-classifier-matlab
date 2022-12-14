@@ -1,4 +1,5 @@
 clear;clc;close all;
+rng(0);
 
 % Load the data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
@@ -15,12 +16,8 @@ numImgs = numel(imds.Files);
 % Read all images from the image datastore to a cell array
 ims = reshape(readall(imds),[numImgs/numClasses numClasses]);
 
-% Remove the means from all the images
-for i = 1:numel(ims)
-    ims{i} = ims{i} - mean(ims{i}(:));
-end
-
 % Divide the images for training, validation, and testing
+ims = ims(randperm(80),:);
 train = ims(1:60,:);
 valid = ims(61:70,:);
 test = ims(71:80,:);
@@ -52,8 +49,10 @@ numEpochs = 100;
 figure
 C = colororder;
 lineLossTrain = animatedline(Color=C(2,:));
+lineLossValid = animatedline(Color=C(4,:));
 xlabel("Epoch")
 ylabel("Loss")
+legend(["Train","Valid"])
 grid on
 
 % Initialize the gradient parameter for the ADAM solver.
@@ -70,7 +69,7 @@ for epoch = 1:numEpochs
 
     % Evaluate the model gradients, state, and loss using dlfeval and the
     % modelLoss function and update the network state.
-    [gradients,state] = dlfeval(@modelLoss,net,X);
+    [trainLoss,gradients,state] = dlfeval(@modelLoss,net,X);
     net.State = state;
 
     % Update the network parameters using the ADAM optimizer.
@@ -84,8 +83,10 @@ for epoch = 1:numEpochs
     
     % Display the training progress.
     D = duration(0,0,toc(start),Format="hh:mm:ss");
+    trainLoss = double(trainLoss);
+    addpoints(lineLossTrain,epoch,trainLoss)
     validLoss = double(validLoss);
-    addpoints(lineLossTrain,epoch,validLoss)
+    addpoints(lineLossValid,epoch,validLoss)
     title("Epoch: " + epoch + ", Elapsed: " + string(D))
     drawnow
 end
@@ -105,7 +106,7 @@ ylabel("Loss")
 title("Test Loss Summary")
 legend(strcat('Image',arrayfun(@num2str,(1:10)','UniformOutput',false)))
 
-function [gradients,state] = modelLoss(net,X)
+function [loss,gradients,state] = modelLoss(net,X)
 % Forward data through network.
 [Y,state] = forward(net,X);
 
