@@ -1,6 +1,6 @@
 clear;clc;close all;
 
-addpath("../libraries/export_fig");
+addpath("../export_fig_altman");
 
 % Load the data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
@@ -35,7 +35,7 @@ for i = 1:3
     for j = 1:size(F,3)
         for k = 1:size(F,4)
             imshow(F(:,:,j,k),[])
-            export_fig(sprintf("feature/%03d_%03d_%03d_%03d.png",mod(k-1,numImg)+1,ceil(k/numImg),i,j))
+            export_fig(sprintf("feature/%03d_%03d_%03d_%03d",mod(k-1,numImg)+1,ceil(k/numImg),i,j),"-png")
         end
     end
 end
