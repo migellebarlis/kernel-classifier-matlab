@@ -26,9 +26,7 @@ L = getLoss(bestNet,X,numKer);
 for i = 1:size(L,3)
     imagesc(L(:,:,i))
     colorbar
-    pause(1)
     export_fig(sprintf("loss/%03d",i),"-png")
-    pause(1)
 end
 
 % Generate the features for all images
@@ -37,7 +35,6 @@ for i = 1:3
     for j = 1:size(F,3)
         for k = 1:size(F,4)
             imshow(F(:,:,j,k),[])
-            pause(3)
             export_fig(sprintf("feature/%03d_%03d_%03d_%03d.png",mod(k-1,numImg)+1,ceil(k/numImg),i,j))
         end
     end
