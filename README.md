@@ -16,6 +16,12 @@ For generating the results of the network
 run result.m
 ```
 
+## Guide on image name
+
+```matlab
+image#_kernel#_feature#_filter#.png
+```
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first
