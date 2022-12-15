@@ -48,7 +48,9 @@ numEpochs = 100;
 % Initialize the training progress plot.
 figure
 C = colororder;
+yyaxis left;
 lineLossTrain = animatedline(Color=C(2,:));
+yyaxis right;
 lineLossValid = animatedline(Color=C(4,:));
 xlabel("Epoch")
 ylabel("Loss")
