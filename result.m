@@ -1,6 +1,6 @@
 clear;clc;close all;
 
-addpath("../export_fig_altman");
+% addpath("../export_fig_altman");
 
 % Load the data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
@@ -23,19 +23,50 @@ X = preprocessData(ims);
 % Generate the loss for all images
 L = getLoss(bestNet,X,numKer);
 
+figure(1);
 for i = 1:size(L,3)
+    subplot(8,10,i);
     imagesc(L(:,:,i))
-    colorbar
-    export_fig(sprintf("loss/%03d",i),"-png")
+    %colorbar
+    %export_fig(sprintf("loss/%03d",i),"-png")
 end
 
 % Generate the features for all images
-for i = 1:3
-    F = double(extractdata(predict(bestNet,X,"Outputs",sprintf("feat_%d",i))));
-    for j = 1:size(F,3)
-        for k = 1:size(F,4)
-            imshow(F(:,:,j,k),[])
-            export_fig(sprintf("feature/%03d_%03d_%03d_%03d",mod(k-1,numImg)+1,ceil(k/numImg),i,j),"-png")
+mkdir('features/');
+[F1,F2,F3,F4] = predict(bestNet,X,"Outputs",{'relu_1','relu_2','relu_3','pool_3'});
+F{1} = reshape(F1.extractdata,[numel(F1(:,:,1,1,1)) size(F1,3) 80 8]);
+F{2} = reshape(F2.extractdata,[numel(F2(:,:,1,1,1)) size(F2,3) 80 8]);
+F{3} = reshape(F3.extractdata,[numel(F3(:,:,1,1,1)) size(F3,3) 80 8]);
+F{4} = reshape(F4.extractdata,[numel(F4(:,:,1,1,1)) size(F4,3) 80 8]);
+
+for i = 1:80
+    for j = 1:8
+        for f = 1:4
+            % Determine the current size of the feature image
+            n = sqrt(size(F{f},1));
+
+            % Pad the feature image with NaNs
+            mask = padarray(true(n),[round(0.1*n) round(0.1*n)]);
+            T = nan([numel(mask) size(F{f},2)]);
+            T(mask,:) = F{f}(:,:,i,j);
+            
+            % Arrange all the features in a 2:3 ratio
+            % xy = m
+            % y = x / 1.5
+            % y^2 / 1.5 = m
+            m = size(T,2);
+            c = ceil(sqrt(m * 1.5));
+            r = ceil(m / c);
+            T = padarray(T,[0 r*c-m],nan,'post');
+
+            % Display as an image
+            n = sqrt(size(T,1));
+            T = col2im(T,[n n],[r c].*[n n],'distinct');
+
+            % Normalise the image
+            T = T - min(T(:));
+            T = T ./ max(T(:));
+            imwrite(256*T,parula(256),sprintf('features/feat%d_im%d_kern%d.png',f,i,j));
         end
     end
 end
