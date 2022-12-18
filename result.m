@@ -1,7 +1,5 @@
 clear;clc;close all;
 
-%addpath("../export_fig_altman");
-
 % Load the data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
 imds = imageDatastore("data", ...
@@ -24,6 +22,7 @@ X = preprocessData(ims);
 L = getLoss(bestNet,X,numKer);
 
 figure(1);
+<<<<<<< HEAD
 imagesc(L.extractdata);
 grid on;
 xticks(0:80:640);
@@ -36,6 +35,14 @@ axis square;
 %     %colorbar
 %     %export_fig(sprintf("loss/%03d",i),"-png")
 % end
+=======
+for i = 1:size(L,3)
+    subplot(8,10,i);
+    imagesc(L(:,:,i))
+    %colorbar
+    %export_fig(sprintf("loss/%03d",i),"-png")
+end
+>>>>>>> dd039bb8ae52834e096d2310b5d3e14c60c30b2a
 
 % Generate the features for all images
 mkdir('features/');
