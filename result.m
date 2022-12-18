@@ -2,18 +2,41 @@ clear;clc;close all;
 
 % Load the data as an image datastore using the imageDatastore
 % function and specify the folder containing the image data.
-imds = imageDatastore("data", ...
+imds = imageDatastore("data/valid", ...
     IncludeSubfolders=true, ...
     LabelSource="foldernames", ...
     FileExtensions='.png');
 
-% Read all images from the image datastore to a cell array
-numKer = numel(categories(imds.Labels));
-numImg = numel(imds.Files)/numKer;
-ims = reshape(readall(imds),[numImg numKer]);
+% Identify the associated kernels
+kern = double(imds.Labels);
+numKern = numel(unique(kern));
+numImg = numel(imds.Files) / numKern;
+numData = numKern * numImg;
 
 % Load the network
-load('bestNet.mat');
+load('bestNet.mat','bestNet');
+
+% Calculate the features for each image
+F1 = zeros(124,124,16,numData);
+F2 = zeros(60,60,8,numData);
+F3 = zeros(28,28,4,numData);
+F4 = zeros(784,numData);
+parfor n = 1:numData
+    % Load the image
+    X = dlarray(double(imread(imds.Files{n})),'SSCB');
+
+    % Process the image through the network
+    [F1(:,:,:,n),F2(:,:,:,n),F3(:,:,:,n),F4(:,n)] = predict(bestNet,X,'Outputs',{'relu_1','relu_2','relu_3','flatten'});
+end
+
+% Normalise the final feature vectors
+F = F4 ./ sqrt(sum(F4 .* F4));
+
+% Calculate the inner products
+P = zeros(1,numData*numData);
+for i = 1:size(F,1)
+    P = P + repmat(F(i,:),[1 numData]) .* kron(F(i,:),ones(1,numData));
+end
 
 % Preprocess for model format
 X = preprocessData(ims);
@@ -22,7 +45,6 @@ X = preprocessData(ims);
 L = getLoss(bestNet,X,numKer);
 
 figure(1);
-<<<<<<< HEAD
 imagesc(L.extractdata);
 grid on;
 xticks(0:80:640);
@@ -35,14 +57,12 @@ axis square;
 %     %colorbar
 %     %export_fig(sprintf("loss/%03d",i),"-png")
 % end
-=======
 for i = 1:size(L,3)
     subplot(8,10,i);
     imagesc(L(:,:,i))
     %colorbar
     %export_fig(sprintf("loss/%03d",i),"-png")
 end
->>>>>>> dd039bb8ae52834e096d2310b5d3e14c60c30b2a
 
 % Generate the features for all images
 mkdir('features/');
