@@ -4,32 +4,23 @@ function trainBlurHash()
 
     % Initialise the training image datastore
     trainDS = imageDatastore('data/train', ...
-        IncludeSubfolders=true, ...
-        LabelSource='foldernames', ...
-        FileExtensions='.png');
+        'IncludeSubfolders', true, ...
+        'LabelSource', 'foldernames', ...
+        'FileExtensions', '.png');
 
     % Create a shuffled copy of the training set for the pairwise training
-    trainShuffled = trainDS.shuffle();
-
-    % Calculate the kernel similarities and create a combine datastore
-    kernSim = transform(trainDS,trainShuffled,@kernelSimilarity,IncludeInfo=true);
-    trainDS = combine(trainDS,trainShuffled,kernSim);
+    trainDS = prepareDataset(trainDS);
 
     % Initialise the validation and test image datastore
     validDS = imageDatastore('data/valid', ...
-        IncludeSubfolders=true, ...
-        LabelSource='foldernames', ...
-        FileExtensions='.png');
+        'IncludeSubfolders', true, ...
+        'LabelSource', 'foldernames', ...
+        'FileExtensions', '.png');
     [validDS,testDS] = validDS.splitEachLabel(0.5);
 
-    % Process the datastores
-    validShuffled = validDS.shuffle();
-    kernSim = transform(validDS,validShuffled,@kernelSimilarity,IncludeInfo=true);
-    validDS = combine(validDS,validShuffled,kernSim);
-
-    testShuffled = testDS.shuffle();
-    kernSim = transform(testDS,testShuffled,@kernelSimilarity,IncludeInfo=true);
-    testDS = combine(testDS,testShuffled,kernSim);
+    % Create shuffled copies of the testing and validation sets
+    validDS = prepareDataset(validDS);
+    testDS = prepareDataset(testDS);
     
     % The network used in this example requires input images of size
     % 128-by-128.
@@ -37,56 +28,57 @@ function trainBlurHash()
     
     % Define the network for image classification.
     layers = [
-        imageInputLayer(inputSize, Normalization='none', Name='input')
+        imageInputLayer(inputSize, 'Normalization', 'none', 'Name', 'input')
         
         % Stage 1 (128 x 128 > 62 x 62)
-        convolution2dLayer(5,16, Name='feat_1')
+        convolution2dLayer(5,16, 'Name', 'feat_1')
         batchNormalizationLayer()
-        leakyReluLayer(Name='relu_1')
-        maxPooling2dLayer(2,Stride=[2 2],Name='pool_1')
+        leakyReluLayer('Name', 'relu_1')
+        maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_1')
 
         % Stage 2 (62 x 62 > 30 x 30)
-        convolution2dLayer(3,8, Name='feat_2')
+        convolution2dLayer(3,8, 'Name', 'feat_2')
         batchNormalizationLayer()
-        leakyReluLayer(Name='relu_2')
-        maxPooling2dLayer(2,Stride=[2 2],Name='pool_2')
+        leakyReluLayer('Name', 'relu_2')
+        maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_2')
 
         % Stage 3 (30 x 30 > 14 x 14)
-        convolution2dLayer(3,4, Name='feat_3')
+        convolution2dLayer(3,4, 'Name', 'feat_3')
         batchNormalizationLayer()
-        leakyReluLayer(Name='relu_3')
-        maxPooling2dLayer(2,Stride=[2 2],Name='pool_3')
+        leakyReluLayer('Name', 'relu_3')
+        maxPooling2dLayer(2,'Stride', [2 2],'Name', 'pool_3')
 
         % Flatten
-        flattenLayer(Name='flatten') % 
+        flattenLayer('Name', 'flatten') % 
         ];
     
     % Create a dlnetwork object from the layer array.
-    net = dlnetwork(layers);
+    %net = dlnetwork(layers);
     
     % Train for n epochs
     numEpochs = 100;
 
     mbqTrain = minibatchqueue(trainDS, ...
-        MiniBatchSize=160, ...
-        MiniBatchFormat={'SSBC','SSBC',''}, ...
-        OutputAsDlarray=[1 1 0], ...
-        OutputEnvironment={'gpu','gpu','gpu'});
+        'MiniBatchSize',160, ...
+        'MiniBatchFormat',{'SSBC','SSBC','SSBC','SSBC','','','',''}, ...
+        'OutputAsDlarray',[ones(1,4) zeros(1,4)], ...
+        'OutputEnvironment',{'cpu','cpu','cpu','cpu','cpu','cpu','cpu','cpu'});
+        %'OutputEnvironment',{'gpu','gpu','gpu','gpu','gpu','gpu','gpu','gpu'});
 
     mbqValid = minibatchqueue(trainDS, ...
-        MiniBatchSize=160, ...
-        MiniBatchFormat={'SSBC','SSBC',''}, ...
-        OutputAsDlarray=[1 1 0], ...
-        OutputEnvironment={'gpu','gpu','gpu'});
+        'MiniBatchSize',160, ...
+        'MiniBatchFormat',{'SSBC','SSBC','SSBC','SSBC','','','',''}, ...
+        'OutputAsDlarray',[ones(1,4) zeros(1,4)], ...
+        'OutputEnvironment',{'gpu','gpu','gpu','gpu','gpu','gpu','gpu','gpu'});
     
     % Initialize the training progress plot.
     close all;
     figure
     C = colororder;
     %yyaxis left;
-    lineLossTrain = animatedline(Color=C(2,:));
+    lineLossTrain = animatedline('Color',C(2,:));
     %yyaxis right;
-    lineLossValid = animatedline(Color=C(4,:));
+    lineLossValid = animatedline('Color',C(4,:));
     xlabel("Iteration")
     ylabel("Loss")
     legend(["Train","Valid"])
@@ -107,18 +99,23 @@ function trainBlurHash()
 
         while hasdata(mbqTrain)
             % Get the next mini-batch
-            [X,Y,k] = next(mbqTrain);
+            [X1,X2,X3,X4,k1,k2,k3,k4] = next(mbqTrain);
+            
+            % Rearrange the data
+            X = cat(4,repmat(X1,[1 1 1 3]),X2,X3,X4);
+            KtK = repmat(k1,[1 3])' * [k2 k3 k4];
+            %k = repmat(k1,[1 1 3])' cat(3,sum(k1 .* k2),sum(k1 .* k3),sum(k1 .* k4));
     
             % Evaluate the model gradients, state, and loss using dlfeval and the
             % modelLoss function and update the network state.
-            [trainLoss,gradients,state] = dlfeval(@modelLoss,net,cat(4,X,Y),k);
+            [trainLoss,gradients,state] = dlfeval(@modelLoss,net,X,KtK);
             net.State = state;
     
             % Update the network parameters using the ADAM optimizer.
             [net,averageGrad,averageSqGrad] = adamupdate(net,gradients,averageGrad,averageSqGrad,iter);
 
             % Display the training progress.
-            D = duration(0,0,toc(start),Format="hh:mm:ss");
+            D = duration(0,0,toc(start),'Format',"hh:mm:ss");
             trainLoss = double(trainLoss);
             addpoints(lineLossTrain,iter,trainLoss)
             title("Epoch: " + epoch + ", Elapsed: " + string(D))
@@ -134,7 +131,7 @@ function trainBlurHash()
                 end
                 
                 % Display the training progress.
-                D = duration(0,0,toc(start),Format="hh:mm:ss");
+                D = duration(0,0,toc(start),'Format',"hh:mm:ss");
                 loss = double(loss);
                 addpoints(lineLossValid,iter,loss)
                 title("Epoch: " + epoch + ", Elapsed: " + string(D))
@@ -148,25 +145,82 @@ function trainBlurHash()
     save('bestNet.mat','bestNet');
 end
 
-function [ds,info] = kernelSimilarity(~,~,info1,info2)
-    % Get the kernel info
-    k1 = double(info1.Label);
-    k2 = double(info2.Label);
-
-    % Load the kernels
-    k1 = im2double(imread(sprintf('data/kern/train/%03d.png',k1)));
-    k2 = im2double(imread(sprintf('data/kern/train/%03d.png',k2)));
-
-    % Recentre the kernels
-    k1 = otf2psf(psf2otf(k1,[150 150]),[150 150]);
-    k2 = otf2psf(psf2otf(k2,[150 150]),[150 150]);
-
-    % Calculate the similarity
-    ds = (k1(:)' * k2(:)) ./ (sqrt((k1(:)' * k1(:)) * (k2(:)' * k2(:))) + eps);
-    info = [];
+function ds = prepareDataset(ds)
+    % Get the kernel and image numbers
+    kern = double(ds.Labels);%
+    im = cellfun(@(x)(str2double(x(end-7:end-4))),ds.Files);
+    
+    % Create a fully scrambled dataset
+    ind = randperm(length(kern));
+    mask = im == im(ind) | kern == kern(ind);
+    while any(mask)
+        % Scramble the affected points
+        n = nnz(mask);
+        t = ind(mask);
+        ind(mask) = t(randperm(n));
+        
+        % Check for any remaining matches
+        mask = im == im(ind) | kern == kern(ind);
+    end
+    ds2 = ds.subset(ind);
+    
+    % Create a kernel-scrambled dataset
+    ind = 1:numel(ds.Files);
+    ims = unique(im);
+    for i = 1:numel(ims)
+        % Find all relevant files
+        mask = im == ims(i);
+        
+        % Scramble the order for the current image
+        while any(im == ims(i) & kern == kern(ind))
+            t = ind(mask);
+            ind(mask) = t(randperm(numel(t)));
+        end
+    end
+    ds3 = ds.subset(ind);
+    
+    % Create a kernel-scrambled dataset
+    ind = 1:numel(ds.Files);
+    kerns = unique(kern);
+    for i = 1:numel(kerns)
+        % Find all relevant files
+        mask = kern == kerns(i);
+        
+        % Scramble the order for the current image
+        while any(kern == kerns(i) & im == im(ind))
+            t = ind(mask);
+            ind(mask) = t(randperm(numel(t)));
+        end
+    end
+    ds4 = ds.subset(ind);
+    
+    k1 = transform(ds, @getKernel, 'IncludeInfo', true);
+    k2 = transform(ds2, @getKernel, 'IncludeInfo', true);
+    k3 = transform(ds3, @getKernel, 'IncludeInfo', true);
+    k4 = transform(ds4, @getKernel, 'IncludeInfo', true);
+    
+    % Combine the datastores
+    ds = combine(ds,ds2,ds3,ds4,k1,k2,k3,k4);
 end
 
-function [loss,gradients,state] = modelLoss(net,X,k)
+function [kern,info] = getKernel(~,info)
+    % Get the kernel info
+    kern = double(info.Label);
+
+    % Load the kernels
+    if contains(info.Filename,'train')
+        kern = im2double(imread(sprintf('data/kern/train/%03d.png',kern)));
+    else
+        kern = im2double(imread(sprintf('data/kern/valid/%03d.png',kern)));
+    end
+
+    % Recentre the kernels
+    kern = otf2psf(psf2otf(kern,[150 150]),[150 150]);
+    kern = kern(:);
+    kern = kern / sqrt(kern' * kern);
+end
+
+function [loss,gradients,state] = modelLoss(net,X,KtK)
     % Process the data through network.
     [T,state] = forward(net,X);
     T = reshape(T,size(T,1),[],2);
@@ -181,6 +235,12 @@ function [loss,gradients,state] = modelLoss(net,X,k)
     p2 = lambda * exp(-(sum(Y .* Y) .^ 2) ./ 0.01);
     p = sum(p1 + p2);
 
+    % Normalise the features
+    X = X ./ sqrt(sum(X .^ 2));
+    Y = Y ./ sqrt(sum(Y .^ 2));
+    
+    % Calculate the main loss
+    
     % Calculate normalised dot product.
     featSim = sum(X .* Y) ./ (sqrt(sum(X .* X) .* sum(Y .* Y)) + eps);
     loss = (featSim .^ 2) * (1 - k) + ((1 - featSim) .^ 2) * k + p;
