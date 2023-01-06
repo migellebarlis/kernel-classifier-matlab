@@ -31,45 +31,103 @@ function trainBlurHash()
         imageInputLayer(inputSize, 'Normalization', 'none', 'Name', 'input')
         
         % Stage 1 (128 x 128 > 62 x 62)
-        convolution2dLayer(5,16, 'Name', 'feat_1')
+        groupedConvolution2dLayer(5,1,'channel-wise')
         batchNormalizationLayer()
-        leakyReluLayer('Name', 'relu_1')
-        maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_1')
+        convolution2dLayer(1,16,'Name','feat_1') % 124 x 124
+        batchNormalizationLayer()
+        dropoutLayer(0.1)
+        leakyReluLayer()
+        maxPooling2dLayer(2,'Stride',[2 2]) % 62 x 62
 
         % Stage 2 (62 x 62 > 30 x 30)
-        convolution2dLayer(3,8, 'Name', 'feat_2')
+        groupedConvolution2dLayer(3,1,'channel-wise')
         batchNormalizationLayer()
-        leakyReluLayer('Name', 'relu_2')
-        maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_2')
+        convolution2dLayer(1,8,'Name','feat_2') % 60 x 60
+        batchNormalizationLayer()
+        dropoutLayer(0.1)
+        leakyReluLayer()
+        maxPooling2dLayer(2,'Stride',[2 2]) % 30 x 30
 
         % Stage 3 (30 x 30 > 14 x 14)
-        convolution2dLayer(3,4, 'Name', 'feat_3')
+        groupedConvolution2dLayer(3,1,'channel-wise')
         batchNormalizationLayer()
-        leakyReluLayer('Name', 'relu_3')
-        maxPooling2dLayer(2,'Stride', [2 2],'Name', 'pool_3')
+        convolution2dLayer(1,4, 'Name','feat_3') % 28 x 28
+        batchNormalizationLayer()
+        dropoutLayer(0.1)
+        leakyReluLayer()
+        maxPooling2dLayer(2,'Stride',[2 2]) % 14 x 14
 
-        % Flatten
-        flattenLayer('Name', 'flatten') % 
+        % Stage 4 (14 x 14 > 6 x 6)
+        groupedConvolution2dLayer(3,1,'channel-wise')
+        batchNormalizationLayer()
+        convolution2dLayer(1,4, 'Name', 'feat_4') % 12 x 12
+        batchNormalizationLayer()
+        dropoutLayer(0.1)
+        leakyReluLayer()
+        maxPooling2dLayer(2,'Stride',[2 2]) % 6 x 6
+
+        % Flatten 
+        flattenLayer('Name', 'flatten')
+        fullyConnectedLayer(144)
+        tanhLayer()
+        dropoutLayer(0.3)
+        fullyConnectedLayer(144)
+%         fullyConnectedLayer(500,'Name','dense')
+%         tanhLayer()
+%         fullyConnectedLayer(200,'Name','dense')
         ];
+%     layers = [
+%         imageInputLayer(inputSize, 'Normalization', 'none', 'Name', 'input')
+%         
+%         % Stage 1 (128 x 128 > 62 x 62)
+%         convolution2dLayer(5,16, 'Name', 'feat_1') % 124 x 124
+%         batchNormalizationLayer()
+%         leakyReluLayer('Name', 'relu_1')
+%         maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_1') % 62 x 62
+% 
+%         % Stage 2 (62 x 62 > 30 x 30)
+%         convolution2dLayer(3,8, 'Name', 'feat_2') % 60 x 60
+%         batchNormalizationLayer()
+%         leakyReluLayer('Name', 'relu_2')
+%         maxPooling2dLayer(2,'Stride', [2 2], 'Name', 'pool_2') % 30 x 30
+% 
+%         % Stage 3 (30 x 30 > 14 x 14)
+%         convolution2dLayer(3,4, 'Name', 'feat_3') % 28 x 28
+%         batchNormalizationLayer()
+%         leakyReluLayer('Name', 'relu_3')
+%         maxPooling2dLayer(2,'Stride', [2 2],'Name', 'pool_3') % 14 x 14
+% 
+%         % Stage 4 (14 x 14 > 6 x 6)
+%         convolution2dLayer(3,4, 'Name', 'feat_4') % 12 x 12
+%         batchNormalizationLayer()
+%         leakyReluLayer('Name', 'relu_4')
+%         maxPooling2dLayer(2,'Stride', [2 2],'Name', 'pool_4') % 6 x 6
+% 
+%         % Flatten 
+%         flattenLayer('Name', 'flatten') % 
+% %         fullyConnectedLayer(500,'Name','dense')
+% %         tanhLayer()
+% %         fullyConnectedLayer(200,'Name','dense')
+%         ];
     
     % Create a dlnetwork object from the layer array.
-    %net = dlnetwork(layers);
+    net = dlnetwork(layers);
     
     % Train for n epochs
-    numEpochs = 100;
+    numEpochs = 50;
 
     mbqTrain = minibatchqueue(trainDS, ...
         'MiniBatchSize',160, ...
         'MiniBatchFormat',{'SSBC','SSBC','SSBC','SSBC','','','',''}, ...
         'OutputAsDlarray',[ones(1,4) zeros(1,4)], ...
-        'OutputEnvironment',{'cpu','cpu','cpu','cpu','cpu','cpu','cpu','cpu'});
-        %'OutputEnvironment',{'gpu','gpu','gpu','gpu','gpu','gpu','gpu','gpu'});
+        'OutputEnvironment',{'auto','auto','auto','auto','auto','auto','auto','auto'});
+        %'OutputEnvironment',{'cpu','cpu','cpu','cpu','cpu','cpu','cpu','cpu'});
 
-    mbqValid = minibatchqueue(trainDS, ...
+    mbqValid = minibatchqueue(validDS, ...
         'MiniBatchSize',160, ...
         'MiniBatchFormat',{'SSBC','SSBC','SSBC','SSBC','','','',''}, ...
         'OutputAsDlarray',[ones(1,4) zeros(1,4)], ...
-        'OutputEnvironment',{'gpu','gpu','gpu','gpu','gpu','gpu','gpu','gpu'});
+        'OutputEnvironment',{'auto','auto','auto','auto','auto','auto','auto','auto'});
     
     % Initialize the training progress plot.
     close all;
@@ -104,7 +162,6 @@ function trainBlurHash()
             % Rearrange the data
             X = cat(4,repmat(X1,[1 1 1 3]),X2,X3,X4);
             KtK = repmat(k1,[1 3])' * [k2 k3 k4];
-            %k = repmat(k1,[1 1 3])' cat(3,sum(k1 .* k2),sum(k1 .* k3),sum(k1 .* k4));
     
             % Evaluate the model gradients, state, and loss using dlfeval and the
             % modelLoss function and update the network state.
@@ -122,8 +179,14 @@ function trainBlurHash()
             drawnow
 
             if mod(iter,25) == 0
-                [X,Y,k] = next(mbqValid);
-                loss = dlfeval(@modelLoss,net,cat(4,X,Y),k);
+                % Get the next mini-batch
+                [X1,X2,X3,X4,k1,k2,k3,k4] = next(mbqValid);
+                
+                % Rearrange the data
+                X = cat(4,repmat(X1,[1 1 1 3]),X2,X3,X4);
+                KtK = repmat(k1,[1 3])' * [k2 k3 k4];
+
+                loss = dlfeval(@modelLoss,net,X,KtK);
 
                 if loss < bestVal
                     bestVal = loss;
@@ -233,17 +296,14 @@ function [loss,gradients,state] = modelLoss(net,X,KtK)
     lambda = 1;
     p1 = lambda * exp(-(sum(X .* X) .^ 2) ./ 0.01);
     p2 = lambda * exp(-(sum(Y .* Y) .^ 2) ./ 0.01);
-    p = sum(p1 + p2);
+    p = mean((p1 + p2) / 2);
 
     % Normalise the features
     X = X ./ sqrt(sum(X .^ 2));
     Y = Y ./ sqrt(sum(Y .^ 2));
     
     % Calculate the main loss
-    
-    % Calculate normalised dot product.
-    featSim = sum(X .* Y) ./ (sqrt(sum(X .* X) .* sum(Y .* Y)) + eps);
-    loss = (featSim .^ 2) * (1 - k) + ((1 - featSim) .^ 2) * k + p;
+    loss = mean((KtK(:) - reshape(X' * Y,[],1)) .^ 2) + p;
     %loss = sum(featSim .^ 2) + p;
 
     % Calculate gradients of loss with respect to learnable parameters.
