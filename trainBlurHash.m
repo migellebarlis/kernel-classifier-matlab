@@ -68,10 +68,10 @@ function trainBlurHash()
 
         % Flatten 
         flattenLayer('Name', 'flatten')
-        fullyConnectedLayer(144)
-        tanhLayer()
-        dropoutLayer(0.3)
-        fullyConnectedLayer(144)
+%         fullyConnectedLayer(144)
+%         tanhLayer()
+%         dropoutLayer(0.3)
+%         fullyConnectedLayer(144)
 %         fullyConnectedLayer(500,'Name','dense')
 %         tanhLayer()
 %         fullyConnectedLayer(200,'Name','dense')
@@ -114,7 +114,7 @@ function trainBlurHash()
     net = dlnetwork(layers);
     
     % Train for n epochs
-    numEpochs = 50;
+    numEpochs = 20;
 
     mbqTrain = minibatchqueue(trainDS, ...
         'MiniBatchSize',160, ...
