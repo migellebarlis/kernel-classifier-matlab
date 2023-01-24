@@ -67,7 +67,7 @@ function trainBlurHash()
         maxPooling2dLayer(2,'Stride',[2 2]) % 6 x 6
 
         % Flatten 
-        flattenLayer('Name', 'flatten')
+%        flattenLayer('Name', 'flatten')
 %         fullyConnectedLayer(144)
 %         tanhLayer()
 %         dropoutLayer(0.3)
@@ -205,7 +205,7 @@ function trainBlurHash()
         end
     end
     
-    save('bestNet.mat','bestNet');
+    save('bestNet.mat','bestNet','bestVal');
 end
 
 function ds = prepareDataset(ds)
@@ -286,7 +286,7 @@ end
 function [loss,gradients,state] = modelLoss(net,X,KtK)
     % Process the data through network.
     [T,state] = forward(net,X);
-    T = reshape(T,size(T,1),[],2);
+    T = reshape(T,prod(size(T,1:3)),[],2);
 
     % Split the features from the two images
     X = T(:,:,1);
@@ -308,111 +308,4 @@ function [loss,gradients,state] = modelLoss(net,X,KtK)
 
     % Calculate gradients of loss with respect to learnable parameters.
     gradients = dlgradient(loss,net.Learnables);
-end
-
-function loss = modelValidate(net,X)
-% Forward data through network.
-Y = predict(net,X);
-
-if ismatrix(Y)
-    numFeat = size(Y,1);
-    numBatch = size(Y,2) / 4;
-else
-    numFeat = numel(Y(:,:,:,1));
-    numBatch = size(Y,4)/4;
-end
-
-Y = reshape(Y,[numFeat numBatch 4]);
-Y1 = squeeze(Y(:,:,1));
-Y2 = squeeze(Y(:,:,2));
-Y3 = squeeze(Y(:,:,3));
-Y4 = squeeze(Y(:,:,4));
-
-% Create penalties for feature vectors approaching zero
-lambda = 1;
-p1 = lambda * exp(-(sum(Y1 .* Y1) .^ 2) ./ 0.01);
-p2 = lambda * exp(-(sum(Y2 .* Y2) .^ 2) ./ 0.01);
-p3 = lambda * exp(-(sum(Y3 .* Y3) .^ 2) ./ 0.01);
-p4 = lambda * exp(-(sum(Y4 .* Y4) .^ 2) ./ 0.01);
-p = sum(p1 + p2 + p3 + p4);
-
-% Calculate normalised dot product.
-t1 = sum((sum(Y1 .* Y2) ./ (sqrt(sum(Y1 .* Y1) .* sum(Y2 .* Y2)) + eps)) .^ 2);
-t2 = sum((1 - sum(Y3 .* Y4) ./ (sqrt(sum(Y3 .* Y3) .* sum(Y4 .* Y4)) + eps)) .^ 2);
-loss = t1 + t2 + p;
-
-end
-
-function loss = modelTest(net,X)
-% Make prediction.
-Y = predict(net,X);
-
-if ismatrix(Y)
-    numFeat = size(Y,1);
-    numBatch = size(Y,2) / 4;
-else
-    numFeat = numel(Y(:,:,:,1));
-    numBatch = size(Y,4)/4;
-end
-
-Y = reshape(Y,[numFeat numBatch 8]);
-loss = zeros([numBatch 8]);
-comb = nchoosek(1:8,2);
-
-for i = 1:size(comb,1)
-    Y1 = squeeze(Y(:,:,comb(i,1)));
-    Y2 = squeeze(Y(:,:,comb(i,2)));
-
-    % Create penalties for feature vectors approaching zero
-    lambda = 1;
-    p1 = lambda * exp(-(sum(Y1 .* Y1) .^ 2) ./ 0.01);
-    p2 = lambda * exp(-(sum(Y2 .* Y2) .^ 2) ./ 0.01);
-    p = p1 + p2;
-    
-    % Calculate normalised dot product.
-    loss(:,i) = (((sum(Y1 .* Y2) .^ 2) ./ (sum(Y1 .* Y1 + Y2 .* Y2) + eps)) + p)';
-end
-
-end
-
-function X = preprocessTrainingData(I,inputSize)
-numBatch = size(I,1);
-numClass = size(I,2);
-
-X1 = zeros([inputSize numBatch]);
-X2 = zeros([inputSize numBatch]);
-X3 = zeros([inputSize numBatch]);
-X4 = zeros([inputSize numBatch]);
-Xsel = randperm(numBatch);
-
-for i = 1:numBatch
-    Csel = randperm(numClass,2);
-    X1(:,:,:,i) = im2double(I{Xsel(i),Csel(1)});
-    X2(:,:,:,i) = im2double(I{Xsel(i),Csel(2)});
-end
-
-for i = 1:numBatch
-    Csel = mod(i,8) + 1;
-    Xsel = randperm(numBatch,2);
-    X3(:,:,:,i) = im2double(I{Xsel(1),Csel});
-    X4(:,:,:,i) = im2double(I{Xsel(2),Csel});
-end
-
-X = dlarray(cat(4,X1,X2,X3,X4),"SSCB");
-
-end
-
-function X = preprocessTestData(I,inputSize)
-numBatch = size(I,1);
-numClass = size(I,2);
-
-X = zeros([inputSize numBatch*numClass]);
-
-for i = 1:numClass
-    for j = 1:numBatch
-        X(:,:,:,j+(i-1)*numBatch) = im2double(I{j,i});
-    end
-end
-
-X = dlarray(X,"SSCB");
 end
