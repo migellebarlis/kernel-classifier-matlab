@@ -171,7 +171,7 @@ function [F,K] = preprocessMiniBatch(I,K)
     load('bestNet.mat','bestNet')
 
     for i = 1:length(I)
-        I{i} = im2double(I{i});
+        I{i} = double(I{i});
     end
 
     % Concatenate images
