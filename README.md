@@ -7,19 +7,13 @@ Kernel Classifier is a MATLAB source code for kernel classification of blurred i
 For training the network
 
 ```matlab
-run demo.m
+run train.m
 ```
 
-For generating the results of the network
+For testing the network
 
 ```matlab
-run result.m
-```
-
-## Guide on image name
-
-```matlab
-image#_kernel#_feature#_filter#.png
+run test.m
 ```
 
 ## Contributing
