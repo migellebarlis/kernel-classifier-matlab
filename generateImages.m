@@ -1,4 +1,5 @@
 function generateImages(numKern)
+    DIV2Kpath = 'G:/MATLAB/databases/DIV2K';
     if nargin == 0
         numKern = 80;
     end
@@ -12,6 +13,7 @@ function generateImages(numKern)
         kern{n} = sub2im(x,y);
         imwrite(kern{n}/max(kern{n}(:)),sprintf('data/kern/train/%03d.png',n));
     end
+    save('data/kern/train.mat','kern');
 
     mkdir('data/train');
     
@@ -23,7 +25,7 @@ function generateImages(numKern)
     % Create the training images
     for n = 1:800
         % Load the image
-        X = im2double(imread(sprintf('../databases/DIV2K/train/%04d.png',n)));
+        X = im2double(imread(sprintf('%s/train/%04d.png',DIV2Kpath,n)));
 
         % Convert to greyscale
         X = rgb2gray(X);
@@ -53,6 +55,7 @@ function generateImages(numKern)
         kern{n} = sub2im(x,y);
         imwrite(kern{n}/max(kern{n}(:)),sprintf('data/kern/valid/%03d.png',n));
     end
+    save('data/kern/valid.mat','kern');
 
     mkdir('data/valid');
     
@@ -61,10 +64,10 @@ function generateImages(numKern)
         mkdir(sprintf('data/valid/%03d',n));
     end
 
-    % Create the training images
+    % Create the validation images
     for n = 801:900
         % Load the image
-        X = im2double(imread(sprintf('../databases/DIV2K/valid/%04d.png',n)));
+        X = im2double(imread(sprintf('%s/valid/%04d.png',DIV2Kpath,n)));
 
         % Convert to greyscale
         X = rgb2gray(X);
