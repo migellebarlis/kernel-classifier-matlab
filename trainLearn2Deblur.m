@@ -20,19 +20,22 @@ function trainLearn2Deblur()
 
     layers = [
         imageInputLayer(inputSize,Normalization='none',Name='input_l2d')
-        convolution2dLayer(5,8,Padding='same',Name='conv_l2d')
+        convolution2dLayer(5,8,Name='conv_l2d',BiasLearnRateFactor=0)
         tanhLayer(Name='tanh1_l2d')
-        convolution2dLayer(1,8,Padding='same',Name='lin1_l2d')
-        tanhLayer(Name='tanh2_l2d')
-        convolution2dLayer(1,4,Padding='same',Name='lin2_l2d')
+        convolution2dLayer(1,8,Name='lin1_l2d',BiasLearnRateFactor=0)
+        %tanhLayer(Name='tanh2_l2d')
+        convolution2dLayer(1,2,Name='lin2_l2d',BiasLearnRateFactor=0)
         % quotientLayer(Name='quot_l2d')
         functionLayer(@quotientFunc,Formattable=true,Name='quot_l2d')
     ];
     
     net = dlnetwork(layers);
 
+%     load('l2b.mat','netl2b');
+%     net = netl2b;
+
     % Specify Training Options
-    numEpochs = 20;
+    numEpochs = 100;
     miniBatchSize = 160;
 
     % Specify the options for Adam optimization
@@ -136,35 +139,44 @@ function trainLearn2Deblur()
 end
 
 function Z = quotientFunc(X)
-    Beta_k = 10^-4;
+    Beta_k = 1e-4;
     splitChannelNum = size(X,finddim(X,'C'))/2;
 
-    x = stripdims(X(:,:,1:splitChannelNum,:));
-    y = stripdims(X(:,:,splitChannelNum+1:end,:));
+    W = barthannwin(124);
+    W = W * W';
 
-    Fx = fft2(x);
-    Fy = fft2(y);
+    x = real(stripdims(X(:,:,1:splitChannelNum,:))) .* W;
+    y = real(stripdims(X(:,:,splitChannelNum+1:end,:))) .* W;
+
+    F = dftmtx(size(x,1));
+    Fx = pagemtimes(pagemtimes(F',x),F);
+    Fy = pagemtimes(pagemtimes(F',y),F);
     
-    Y_hat = sum(pagectranspose(Fx).*Fy,3);
-    X_hat = sum(Fx.^2,3) + Beta_k;
-    Z = otf2psf2(Y_hat./X_hat);
-    Z = dlarray(Z,'SSCB');
+    num = sum(conj(Fx).*Fy,3);
+    den = sum(abs(Fx).^2,3) + Beta_k;
+
+    Z = abs(pagemtimes(pagemtimes(F,num ./ den),F'));
+    %Z = real(ifft(ifft(num ./ den,[],2),[],1));
+    %Z = real(otf2psf2(Y_hat./X_hat));
+    %Z = dlarray(Z,'SSCB');
 end
 
 function [loss,gradients,state] = modelLoss(net,I,K)
 
     % Calculate the predictions.
-    [KGenerated,state] = forward(net,I);
+    [Ke,state] = forward(net,I);
 
     % Normalise the kernels
-    KGenerated = reshape(KGenerated, [prod(size(KGenerated,[1 2])) size(KGenerated,3)*size(KGenerated,4)]);
-    KGenerated = KGenerated ./ sqrt(sum(KGenerated.^2,1));
+    Ke = reshape(Ke, [prod(size(Ke,[1 2])) size(Ke,3)*size(Ke,4)]);
+    Ke = Ke ./ sqrt(sum(Ke.^2,1));
+%     Ke = reshape(Ke,prod(size(Ke,[1 2])),[]);
+%     E = sum(Ke .* K,1) .* K - Ke;
 
-    K = reshape(K, [prod(size(K,[1 2])) size(K,3)*size(K,4)]);
-    K = K ./ sqrt(sum(K.^2,1));
-    
+    K = reshape(K(1:124,1:124,:,:),size(Ke));
+
     % Calculate the dot product.
-    loss = sum(abs(K .* KGenerated),'all');
+    loss = mean((1 - sum(K .* Ke,1)) .^ 2);
+%     loss = mean(sum(E .^ 2,1));
     
     % Calculate gradients of loss with respect to learnable parameters.
     gradients = dlgradient(loss,net.Learnables);
@@ -183,7 +195,7 @@ function [I,K] = preprocessMiniBatch(I,K)
 
     % Convert images to double
     for i = 1:length(I)
-        I{i} = double(I{i});
+        I{i} = im2single(I{i});
     end
 
     % Concatenate images
