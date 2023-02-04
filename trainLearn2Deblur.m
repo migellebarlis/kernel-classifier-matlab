@@ -25,8 +25,8 @@ function trainLearn2Deblur()
         convolution2dLayer(5,8,Name='conv_l2d',WeightsInitializer='ones')
         tanhLayer(Name='tanh1_l2d')
         convolution2dLayer(1,8,Name='lin1_l2d')
-        tanhLayer(Name='tanh2_l2d')
-        convolution2dLayer(1,2,Name='lin2_l2d')
+        %tanhLayer(Name='tanh2_l2d')
+        convolution2dLayer(1,4,Name='lin2_l2d')
         % quotientLayer(Name='quot_l2d')
         functionLayer(@quotientFunc,Formattable=true,Name='quot_l2d')
     ];
@@ -150,14 +150,17 @@ function Z = quotientFunc(X)
     x = real(stripdims(X(:,:,1:splitChannelNum,:))) .* W;
     y = real(stripdims(X(:,:,splitChannelNum+1:end,:))) .* W;
 
-    F = dftmtx(size(x,1));
-    Fx = pagemtimes(pagemtimes(F',x),F);
-    Fy = pagemtimes(pagemtimes(F',y),F);
+    Fx = fft(fft(x,[],1),[],2);
+    Fy = fft(fft(y,[],1),[],2);
+%     F = dftmtx(size(x,1));
+%     Fx = pagemtimes(pagemtimes(F',x),F);
+%     Fy = pagemtimes(pagemtimes(F',y),F);
     
     num = sum(conj(Fx).*Fy,3);
     den = sum(abs(Fx).^2,3) + Beta_k;
 
-    Z = abs(pagemtimes(F,pagemtimes(num ./ den,F')));
+    Z = otf2psf2(num ./ den);
+%    Z = abs(pagemtimes(F,pagemtimes(num ./ den,F')));
     %Z = real(ifft(ifft(num ./ den,[],2),[],1));
     %Z = real(otf2psf2(Y_hat./X_hat));
     %Z = dlarray(Z,'SSCB');
@@ -169,17 +172,19 @@ function [loss,gradients,state] = modelLoss(net,I,K)
 
     
     % Normalise the kernels
-%     Ke = reshape(Ke, [prod(size(Ke,[1 2])) size(Ke,3)*size(Ke,4)]);
-%     Ke = Ke ./ sqrt(sum(Ke.^2,1));
+    Ke = reshape(Ke, [prod(size(Ke,[1 2])) size(Ke,3)*size(Ke,4)]);
+    Ke = Ke ./ sqrt(sum(Ke.^2,1));
+    K = reshape(K, size(Ke));
+    K = K ./ sqrt(sum(K.^2,1));
 
-    Ke = reshape(Ke,prod(size(Ke,[1 2])),[]);
-    K = reshape(K(1:124,1:124,:,:),size(Ke));
-    E = sum(Ke .* K,1) .* K - Ke;
+%     Ke = reshape(Ke,prod(size(Ke,[1 2])),[]);
+%     K = reshape(K,size(Ke));
+%     E = K - Ke;
 
 
     % Calculate the dot product.
-%     loss = mean((1 - sum(K .* Ke,1)) .^ 2);
-    loss = mean(sum(E .^ 2,1));
+    loss = mean((1 - sum(K .* Ke,1)) .^ 2);
+%     loss = mean(sum(E .^ 2,1));
     
     % Calculate gradients of loss with respect to learnable parameters.
     gradients = dlgradient(loss,net.Learnables);
@@ -211,17 +216,21 @@ end
 function [kern,info] = getKernel(~,info)
 
     % Get the kernel info
-    sizeKern = [128 128];
-    kern = double(info.Label);
+    sizeKern = [124 124];
+    kn = double(info.Label);
 
     % Load the kernels
     if contains(info.Filename,'train')
-        kern = im2double(imread(sprintf('data/kern/train/%03d.png',kern)));
+        load('data/kern/train.mat','kern');
+        %kern = im2double(imread(sprintf('data/kern/train/%03d.png',kern)));
     else
-        kern = im2double(imread(sprintf('data/kern/valid/%03d.png',kern)));
+        load('data/kern/valid.mat','kern');
+        %kern = im2double(imread(sprintf('data/kern/valid/%03d.png',kern)));
     end
+
+    kern = kern{kn};
 
     % Recentre the kernels
     kern = otf2psf(psf2otf(kern,sizeKern),sizeKern);
-    kern = kern / sqrt(kern(:)' * kern(:));
+    %kern = kern / sqrt(kern(:)' * kern(:));
 end

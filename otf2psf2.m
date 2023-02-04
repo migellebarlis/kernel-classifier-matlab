@@ -41,7 +41,7 @@ matlab.images.internal.errorIfgpuArray(varargin{:});
 if ~all(otf(:)==0)
    
    % psf = ifftn(otf);
-   psf = real(ifft(ifft(otf,[],1),[],2));
+   psf = (ifft(ifft(otf,[],2),[],1));
 
    % Estimate the rough number of operations involved in the 
    % computation of the IFFT 
